@@ -6,15 +6,9 @@ GaussPyr::GaussPyr(cv::Mat& img, int number_of_layers, float sigma)
 	for (int i = 0; i < number_of_layers; ++i)
 	{
 		cv::GaussianBlur(dst, dst, cv::Size(0, 0), sigma, 0, cv::BORDER_REPLICATE);
-		layers.push_back( dst.clone() ); // remember to deep copy!
-		std::cout << "layer " << i << " size " << layers.back().size() << std::endl;
+		_layers.push_back( dst.clone() ); // remember to deep copy!
+		std::cout << "layer " << i << " size " << _layers.back().size() << std::endl;
 		cv::resize(dst, dst, cv::Size(), 0.5, 0.5, cv::INTER_NEAREST);
+		std::cout << "Pyramid has " << _layers.size() << " layers." << std::endl;
 	}
-	std::cout << "Pyramid has " << layers.size() << " layers." << std::endl;
-}
-
-
-cv::Mat GaussPyr::get(int layer)
-{
-    return layers[layer];
 }

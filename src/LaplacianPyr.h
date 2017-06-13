@@ -8,7 +8,18 @@ class LaplacianPyr
 {
 public:
 	LaplacianPyr(const GaussPyr& p, float sigma);
+
+	int getLayersSize() const
+	{
+		return _layers.size();
+	}
+
+	cv::Mat getLayer(int layer) const
+	{
+  	  return _layers[layer];
+	}
+	
 private:
-        std::vector <cv::Mat> layers;
+   std::vector<cv::Mat> _layers;
 };
 #endif

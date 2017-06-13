@@ -7,14 +7,18 @@ class GaussPyr
 {
 public:
 	GaussPyr(cv::Mat& img, int number_of_layers, float sigma);
-	cv::Mat get(int layer);
-
-	const std::vector<cv::Mat>& Layers()
+	
+	int getLayersSize() const
 	{
-		return layers;
+		return _layers.size();
+	}
+
+	cv::Mat getLayer(int layer) const
+	{
+  	  return _layers[layer];
 	}
 
 private:
-	std::vector <cv::Mat> layers;
+	std::vector<cv::Mat> _layers;
 };
 #endif
