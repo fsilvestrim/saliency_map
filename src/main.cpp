@@ -4,6 +4,12 @@
 #include "boost/filesystem.hpp"
 #include "boost/regex.hpp"
 
+struct hyperparams {
+    int numLayers = 4;
+    int centerSigma = 5;
+    int surroundSigma = 20;
+} settings;
+
 cv::Mat across_scale_addition(const std::vector<cv::Mat> &scale_images) {
     cv::Size im_size = scale_images[0].size();
     cv::Mat result = scale_images[0];
@@ -17,32 +23,36 @@ cv::Mat across_scale_addition(const std::vector<cv::Mat> &scale_images) {
 
         result += resized;
     }
+
+#ifdef VISUAL
+    cv::imshow("Across Scale Addition", result);
+#endif
+
     return result;
 }
 
-void showPyramid(GaussPyr pc, GaussPyr ps, int numLayers) {
-    std::vector<cv::Mat> mCsC;
-    std::vector<cv::Mat> mSCC;
+void compute_pyramid(cv::Mat mat, std::vector<cv::Mat>& mCsC, std::vector<cv::Mat>& mSCC) {
+    GaussPyr pc = GaussPyr(mat, settings.numLayers, settings.centerSigma);
+    GaussPyr ps = GaussPyr(mat, settings.numLayers, settings.surroundSigma);
 
-    for (int l = 0; l < numLayers; ++l) {
+    for (int l = 0; l < settings.numLayers; ++l) {
         cv::Mat csC = pc.getLayer(l) - ps.getLayer(l);
         cv::threshold(csC, csC, 0, 1, cv::THRESH_TOZERO);
         mCsC.push_back(csC);
 
+#ifdef VISUAL
         cv::imshow("Gaussian pyramid CS Contrast", csC);
+#endif
 
         cv::Mat scC = ps.getLayer(l) - pc.getLayer(l);
         cv::threshold(scC, scC, 0, 1, cv::THRESH_TOZERO);
         mSCC.push_back(scC);
 
+#ifdef VISUAL
         cv::imshow("Gaussian pyramid SC Contrast", scC);
-
         cv::waitKey(0);
+#endif
     }
-
-    cv::imshow("Feature Map Center", across_scale_addition(mCsC));
-    cv::imshow("Feature Map Surround", across_scale_addition(mSCC));
-    cv::waitKey(0);
 }
 
 void saveImage(cv::Mat image, std::string outPath) {
@@ -73,22 +83,53 @@ void process_image(std::string image_path)
     //get channels
     cv::Mat lab_channels[3];
     cv::split(image_lab, lab_channels);
+
+    //center-surround pyramids
+    std::vector<cv::Mat> mCsC[3];
+    std::vector<cv::Mat> mSCC[3];
+    compute_pyramid(lab_channels[0], mCsC[0], mSCC[0]);
+    compute_pyramid(lab_channels[1], mCsC[1], mSCC[1]);
+    compute_pyramid(lab_channels[2], mCsC[2], mSCC[2]);
+
+    //contrast pyramids
+    cv::Mat across_scale_additions[3];
+    cv::Mat featMapCenterL = across_scale_addition(mCsC[0]);
+    cv::Mat featMapSurroundL = across_scale_addition(mSCC[0]);
+
+    //feature maps
+
+    //conspicuity maps
+
+    //saliency
 }
 
 int main(int argc, const char **argv) {
     ArgumentParser parser;
     parser.addArgument("-i", "--input", 1);
+    parser.addArgument("-o", "--output", 1);
     parser.parse(argc, argv);
 
     std::string input = parser.retrieve<std::string>("input");
+    std::string output = parser.retrieve<std::string>("output");
 
     boost::filesystem::path input_path(input);
 
     if ( !boost::filesystem::exists( input_path ) )
     {
-        std::cout << "Path '" << input << "' not found." << std::endl;
+        std::cout << "Input path '" << input << "' not found." << std::endl;
         return -1;
     }
+
+    boost::filesystem::path output_path(output);
+    if(!boost::filesystem::is_directory(output_path))
+    {
+        std::cout << "Ouput path '" << output << "' must be a directory (and it's not)." << std::endl;
+        return -1;
+    }
+
+    if (boost::filesystem::exists(output_path))
+        boost::filesystem::remove_all(output_path);
+    boost::filesystem::create_directory(output_path);
 
     if(boost::filesystem::is_regular_file(input_path))
     {
@@ -118,22 +159,22 @@ int main(int argc, const char **argv) {
     /*
     // hyper parameters
     int numLayers = 4;
-    int stdC = 5;
-    int stdS = 20;
+    int centerSigma = 5;
+    int surroundSigma = 20;
 
     // channel L
-    GaussPyr pcL = GaussPyr(lab_channels[0], numLayers, stdC);
-    GaussPyr psL = GaussPyr(lab_channels[0], numLayers, stdS);
+    GaussPyr pcL = GaussPyr(lab_channels[0], numLayers, centerSigma);
+    GaussPyr psL = GaussPyr(lab_channels[0], numLayers, surroundSigma);
     showPyramid(pcL, psL, numLayers);
 
     // channel A
-    GaussPyr pcA = GaussPyr(lab_channels[1], numLayers, stdC);
-    GaussPyr psA = GaussPyr(lab_channels[1], numLayers, stdS);
+    GaussPyr pcA = GaussPyr(lab_channels[1], numLayers, centerSigma);
+    GaussPyr psA = GaussPyr(lab_channels[1], numLayers, surroundSigma);
     showPyramid(pcA, psA, numLayers);
 
     // channel B
-    GaussPyr pcB = GaussPyr(lab_channels[2], numLayers, stdC);
-    GaussPyr psB = GaussPyr(lab_channels[2], numLayers, stdS);
+    GaussPyr pcB = GaussPyr(lab_channels[2], numLayers, centerSigma);
+    GaussPyr psB = GaussPyr(lab_channels[2], numLayers, surroundSigma);
     showPyramid(pcB, psB, numLayers);
 
     // laplacian
