@@ -1,8 +1,11 @@
 #include "OrientedPyr.h"
 #include "argparse.hpp"
+#include "fusion_methods.hpp"
 
 #include "boost/filesystem.hpp"
 #include "boost/regex.hpp"
+
+#define VISUAL
 
 struct hyperparams {
     int num_layers = 4;
@@ -10,48 +13,6 @@ struct hyperparams {
     int surround_sigma = 20;
     boost::filesystem::path out_path;
 } settings;
-
-cv::Mat fusion_arithmetic_mean(const std::vector<cv::Mat> &scale_images) {
-    cv::Mat add;
-    double max;
-
-    for (int i = 0; i < scale_images.size(); ++i) {
-        cv::Mat img = scale_images[i].clone();
-        double min_val, max_val;
-        cv::minMaxLoc(img, &min_val, &max_val);
-        max = std::max(max, max_val);
-
-        if (i == 0) add = cv::Mat::zeros(img.size(), CV_32F);
-        add += img;
-    }
-
-    cv::Mat result = add / 2.0f;
-    cv::normalize(result, result, 0.0f, (float) max, cv::NORM_MINMAX);
-
-#ifdef VISUAL
-    cv::imshow("Fusion: Arithmetic Mean", result);
-#endif
-
-    return result;
-}
-
-cv::Mat fusion_across_scale_addition(const std::vector<cv::Mat> &scale_images) {
-    cv::Size im_size = scale_images[0].size();
-    cv::Mat add = scale_images[0];
-    for (int i = 0; i < scale_images.size(); ++i) {
-        cv::Mat resized;
-        if (scale_images[i].size() != im_size) {
-            cv::resize(scale_images[i], resized, im_size, 0, 0, cv::INTER_CUBIC);
-            add += resized;
-        }
-    }
-
-#ifdef VISUAL
-    cv::imshow("Fusion: Across Scale Addition", result);
-#endif
-
-    return add;
-}
 
 void compute_pyramid(cv::Mat mat, std::vector<cv::Mat> &on_off, std::vector<cv::Mat> &off_on) {
     GaussPyr pc = GaussPyr(mat, settings.num_layers, settings.center_sigma, true);
@@ -64,22 +25,31 @@ void compute_pyramid(cv::Mat mat, std::vector<cv::Mat> &on_off, std::vector<cv::
         cv::threshold(csC, csC, 0, 1, cv::THRESH_TOZERO);
         on_off.push_back(csC);
 
-#ifdef VISUAL
-        cv::imshow("Gaussian pyramid CS Contrast", csC);
-#endif
-
         cv::Mat scC = ps.getLayer(l) - pc.getLayer(l);
         cv::threshold(scC, scC, 0, 1, cv::THRESH_TOZERO);
         off_on.push_back(scC);
-
-#ifdef VISUAL
-        cv::imshow("Gaussian pyramid SC Contrast", scC);
-        cv::waitKey(0);
-#endif
     }
 }
 
-void saveImage(cv::Mat image, std::string outPath) {
+void show_image(std::string header, cv::Mat img)
+{
+    cv::namedWindow(header, cv::WINDOW_AUTOSIZE);
+    cv::imshow(header, img);
+    cv::waitKey(0);
+    cv::destroyWindow(header);
+}
+
+void show_two_images(std::string header, cv::Mat left, cv::Mat right)
+{
+    cv::Mat merged(left.size().height, left.size().width+right.size().width, CV_32F);
+    cv::Mat in_left(merged, cv::Rect(0, 0, left.size().width, left.size().height));
+    left.copyTo(in_left);
+    cv::Mat in_right(merged, cv::Rect(left.size().width, 0, right.size().width, right.size().height));
+    right.copyTo(in_right);
+    show_image(header, merged);
+}
+
+void save_image(cv::Mat image, std::string outPath) {
     cv::Mat outImage;
     image.convertTo(outImage, CV_8UC1, 255);
     cv::imwrite(outPath, outImage);
@@ -108,6 +78,7 @@ void process_image(boost::filesystem::path image_path) {
     cv::split(image_lab, lab_channels);
 
     std::vector<cv::Mat> conspicuity_maps;
+    std::string lab_verbsose[3] = {"L (black/white)", "A (green/red)", "B (blue/yellow)"};
 
     // LAB channels iteration
     for (int i = 0; i < 3; ++i) {
@@ -117,12 +88,20 @@ void process_image(boost::filesystem::path image_path) {
         std::vector<cv::Mat> off_on;
         compute_pyramid(lab_channels[i], on_off, off_on);
 
+#ifdef VISUAL
+        show_two_images("Center/Surround Upper Layer for " + lab_verbsose[i], on_off[0], off_on[0]);
+#endif
+
         //center-surround - feature maps
         cv::Mat on_off_feature;
         on_off_feature = fusion_across_scale_addition(on_off);
 
         cv::Mat off_on_feature;
         off_on_feature = fusion_across_scale_addition(off_on);
+
+#ifdef VISUAL
+        show_two_images("Center/Surround Feature (fused) for " + lab_verbsose[i], on_off_feature, off_on_feature);
+#endif
 
         //contrast - pyramids
         GaussPyr on_off_contrast = GaussPyr(on_off_feature, settings.num_layers, settings.center_sigma, true);
@@ -135,17 +114,29 @@ void process_image(boost::filesystem::path image_path) {
         cv::Mat off_on_contrast_feature;
         off_on_contrast_feature = fusion_across_scale_addition(off_on_contrast.getLayers());
 
+#ifdef VISUAL
+        show_two_images("Center/Surround Contrast Feature (fused) for " + lab_verbsose[i], on_off_contrast_feature, off_on_contrast_feature);
+#endif
+
         //conspicuity maps
         std::vector<cv::Mat> contrast_features = {on_off_contrast_feature, off_on_contrast_feature};
         conspicuity_maps.push_back(fusion_arithmetic_mean(contrast_features));
+
+#ifdef VISUAL
+        show_image("Conspicuity Feature for " + lab_verbsose[i], conspicuity_maps[i]);
+#endif
     }
 
     //saliency
     cv::Mat saliency = fusion_arithmetic_mean(conspicuity_maps);
 
+#ifdef VISUAL
+    show_image("Final", saliency);
+#endif
+
     //save
     std::string output_path = (settings.out_path / image_path.stem()).string() + "_saliency.png";
-    saveImage(saliency, output_path);
+    save_image(saliency, output_path);
 }
 
 int main(int argc, const char **argv) {
