@@ -4,11 +4,11 @@
 # The path where ground truth binary masks are
 GT_PATH=../data/binarymasks/
 # The path where saliency maps computed by your system are
-SAL_PATH=../data/results/saliency/
+SAL_PATH=../data/saliency/
 # The location of the saliency evaluation tool
 EVAL_TOOL=./SaliencyEvaluationTool/SaliencyEvaluationTool.jar
 # The path where to write results to
-RES_PATH=../data/results/plots/
+RES_PATH=../data/plots/
 
 # This ensures the results directory exists
 mkdir -p "${RES_PATH}"

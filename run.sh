@@ -1,7 +1,11 @@
 #!/bin/sh
 
-./build/saliency ./data/input.zip ./data/results/saliency
+cd ./build
+./saliency --input "../data/input/" "../data/saliency/"
+cd $OLDPWD
 
-./tools/eval.sh
+cd ./tools
+./eval.sh
+cd $OLDPWD 
 
 
