@@ -4,12 +4,35 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
+cv::Mat fusion_max(const std::vector<cv::Mat> &scale_images) {
+    cv::Mat fmax;
+    double max;
+
+    for (int i = 0; i < scale_images.size(); ++i) {
+        cv::Mat img = scale_images[i].clone();
+        img.convertTo(img, CV_32F);
+
+        double min_val, max_val;
+        cv::minMaxLoc(img, &min_val, &max_val);
+        max = std::max(max, max_val);
+
+        if (i == 0) fmax = cv::Mat::zeros(img.size(), CV_32F);
+        fmax = cv::max(fmax, img);
+    }
+
+    cv::normalize(fmax, fmax, 0.0f, (float)max, cv::NORM_MINMAX);
+
+    return fmax;
+}
+
 cv::Mat fusion_arithmetic_mean(const std::vector<cv::Mat> &scale_images) {
     cv::Mat add;
     double max;
 
     for (int i = 0; i < scale_images.size(); ++i) {
         cv::Mat img = scale_images[i].clone();
+        img.convertTo(img, CV_32F);
+
         double min_val, max_val;
         cv::minMaxLoc(img, &min_val, &max_val);
         max = std::max(max, max_val);
@@ -18,7 +41,7 @@ cv::Mat fusion_arithmetic_mean(const std::vector<cv::Mat> &scale_images) {
         add += img;
     }
 
-    cv::Mat result = add / 2.0f;
+    cv::Mat result = add / (float)scale_images.size();
     cv::normalize(result, result, 0.0f, (float) max, cv::NORM_MINMAX);
 
     return result;

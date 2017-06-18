@@ -6,7 +6,7 @@
 
 class GaussPyr {
 public:
-    GaussPyr(cv::Mat &img, int number_of_layers, float sigma, bool convert2Float32 = false);
+    GaussPyr(cv::Mat &img, int number_of_layers, float sigma);
 
     int getLayersSize() const {
         return _layers.size();

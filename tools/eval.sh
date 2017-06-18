@@ -14,5 +14,4 @@ RES_PATH=../data/plots/
 mkdir -p "${RES_PATH}"
 
 # Run the evaluation script using paths defined above
-java -jar ${EVAL_TOOL} pathGT="${GT_PATH}" pathSM="${SAL_PATH}"
-	 pathResult="${RES_PATH}"
+java -jar ${EVAL_TOOL} pathGT="${GT_PATH}" pathSM="${SAL_PATH}" pathResult="${RES_PATH}"
